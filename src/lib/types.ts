@@ -26,6 +26,9 @@ export interface RouteStop {
 export interface PlannedRoute {
   driver: Driver;
   stops: RouteStop[];
-  totalDistance: number; // km
-  totalTime: number; // minutes
+  totalDistance: number; // km (haversine estimate)
+  totalTime: number; // minutes (haversine estimate)
+  routeGeometry?: [number, number][]; // [lat, lng][] real road path from OSRM
+  realDistance?: number; // km (real road distance from OSRM)
+  realDuration?: number; // minutes (real driving time from OSRM)
 }

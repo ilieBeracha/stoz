@@ -11,11 +11,14 @@ import {
 import { Order, PlannedRoute } from "@/lib/types";
 import { loadOrders, saveOrders, loadDriverCount, saveDriverCount } from "@/lib/storage";
 import { optimizeRoutes } from "@/lib/optimizer";
+import { fetchRouteGeometry } from "@/lib/routing";
+import { RESTAURANT_LOCATION } from "@/constants";
 
 interface DeliveryState {
   orders: Order[];
   driverCount: number;
   routes: PlannedRoute[];
+  optimizing: boolean;
   addOrder: (order: Omit<Order, "id" | "createdAt">) => void;
   removeOrder: (id: string) => void;
   setDriverCount: (count: number) => void;
@@ -29,6 +32,7 @@ export function DeliveryProvider({ children }: { children: ReactNode }) {
   const [orders, setOrders] = useState<Order[]>([]);
   const [driverCount, setDriverCountState] = useState(2);
   const [routes, setRoutes] = useState<PlannedRoute[]>([]);
+  const [optimizing, setOptimizing] = useState(false);
   const [loaded, setLoaded] = useState(false);
 
   // Load from localStorage on mount
@@ -55,7 +59,7 @@ export function DeliveryProvider({ children }: { children: ReactNode }) {
         createdAt: new Date().toISOString(),
       };
       setOrders((prev) => [...prev, order]);
-      setRoutes([]); // Clear routes when orders change
+      setRoutes([]);
     },
     []
   );
@@ -70,9 +74,42 @@ export function DeliveryProvider({ children }: { children: ReactNode }) {
     setRoutes([]);
   }, []);
 
-  const optimize = useCallback(() => {
+  const optimize = useCallback(async () => {
+    setOptimizing(true);
+
+    // Phase 1: Run sync optimizer (Haversine-based)
     const result = optimizeRoutes(orders, driverCount);
+    // Show routes immediately with straight lines
     setRoutes(result);
+
+    // Phase 2: Fetch real road geometries from OSRM in parallel
+    try {
+      const routesWithGeometry = await Promise.all(
+        result.map(async (route) => {
+          if (route.stops.length === 0) return route;
+
+          const waypoints = [
+            { lat: RESTAURANT_LOCATION.lat, lng: RESTAURANT_LOCATION.lng },
+            ...route.stops.map((s) => ({ lat: s.order.lat, lng: s.order.lng })),
+          ];
+
+          const osrmResult = await fetchRouteGeometry(waypoints);
+          if (!osrmResult) return route;
+
+          return {
+            ...route,
+            routeGeometry: osrmResult.geometry,
+            realDistance: osrmResult.distance,
+            realDuration: osrmResult.duration,
+          };
+        })
+      );
+      setRoutes(routesWithGeometry);
+    } catch {
+      // OSRM failed — keep straight-line routes (already set above)
+    }
+
+    setOptimizing(false);
   }, [orders, driverCount]);
 
   const clearAll = useCallback(() => {
@@ -86,6 +123,7 @@ export function DeliveryProvider({ children }: { children: ReactNode }) {
         orders,
         driverCount,
         routes,
+        optimizing,
         addOrder,
         removeOrder,
         setDriverCount,

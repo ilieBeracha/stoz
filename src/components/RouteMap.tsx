@@ -70,16 +70,18 @@ export default function RouteMap() {
     return map;
   }, [routes]);
 
-  // Build polyline points per route
+  // Build polyline points per route — use real road geometry when available
   const polylines = useMemo(() => {
     return routes.map((route) => ({
       color: route.driver.color,
-      positions: [
-        [RESTAURANT_LOCATION.lat, RESTAURANT_LOCATION.lng] as L.LatLngTuple,
-        ...route.stops.map(
-          (s) => [s.order.lat, s.order.lng] as L.LatLngTuple
-        ),
-      ],
+      positions: route.routeGeometry
+        ? route.routeGeometry.map(([lat, lng]) => [lat, lng] as L.LatLngTuple)
+        : [
+            [RESTAURANT_LOCATION.lat, RESTAURANT_LOCATION.lng] as L.LatLngTuple,
+            ...route.stops.map(
+              (s) => [s.order.lat, s.order.lng] as L.LatLngTuple
+            ),
+          ],
     }));
   }, [routes]);
 
