@@ -77,12 +77,10 @@ export function DeliveryProvider({ children }: { children: ReactNode }) {
   const optimize = useCallback(async () => {
     setOptimizing(true);
 
-    // Phase 1: Run sync optimizer (Haversine-based)
+    // Run sync optimizer (Haversine-based)
     const result = optimizeRoutes(orders, driverCount);
-    // Show routes immediately with straight lines
-    setRoutes(result);
 
-    // Phase 2: Fetch real road geometries from OSRM in parallel
+    // Fetch real road geometries from OSRM in parallel before showing routes
     try {
       const routesWithGeometry = await Promise.all(
         result.map(async (route) => {
