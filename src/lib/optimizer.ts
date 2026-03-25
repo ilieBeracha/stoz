@@ -22,17 +22,15 @@ function foodTypePenalty(foodType: string): number {
   }
 }
 
-function minutesUntilDeadline(deadline: string): number {
-  const now = new Date();
-  const [h, m] = deadline.split(":").map(Number);
-  const deadlineDate = new Date();
-  deadlineDate.setHours(h, m, 0, 0);
-  const diff = (deadlineDate.getTime() - now.getTime()) / 60000;
+function minutesUntilDeadline(order: Order): number {
+  const deadlineTime =
+    new Date(order.createdAt).getTime() + order.deadline * 60000;
+  const diff = (deadlineTime - Date.now()) / 60000;
   return Math.max(diff, 1); // minimum 1 minute to avoid division by zero
 }
 
 function urgencyScore(order: Order): number {
-  const mins = minutesUntilDeadline(order.deadline);
+  const mins = minutesUntilDeadline(order);
   const timeWeight = 10;
   const foodWeight = 5;
   let score = timeWeight * (1 / mins) + foodWeight * foodTypePenalty(order.foodType);
@@ -154,7 +152,7 @@ function sequenceStops(orders: Order[]): Order[] {
   // Deadline feasibility: bubble up orders that would miss deadlines
   for (let i = 1; i < sequence.length; i++) {
     const eta = estimateArrivalMinutes(sequence, i);
-    const mins = minutesUntilDeadline(sequence[i].deadline);
+    const mins = minutesUntilDeadline(sequence[i]);
     if (eta > mins && i > 0) {
       // Swap with previous
       [sequence[i], sequence[i - 1]] = [sequence[i - 1], sequence[i]];

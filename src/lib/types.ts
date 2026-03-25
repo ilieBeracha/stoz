@@ -6,7 +6,7 @@ export interface Order {
   lat: number;
   lng: number;
   foodType: FoodType;
-  deadline: string; // HH:mm
+  deadline: number; // minutes until delivery deadline
   notes?: string;
   createdAt: string;
 }

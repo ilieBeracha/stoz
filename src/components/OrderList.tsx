@@ -41,7 +41,7 @@ export default function OrderList() {
                 }`}>
                   {FOOD_TYPE_LABELS[order.foodType]}
                 </span>
-                <span>⏰ {order.deadline}</span>
+                <span>⏰ {order.deadline} דק׳</span>
               </div>
             </div>
             <button
