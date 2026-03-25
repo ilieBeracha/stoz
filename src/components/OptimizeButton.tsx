@@ -3,16 +3,20 @@
 import { useDelivery } from "@/context/DeliveryContext";
 
 export default function OptimizeButton() {
-  const { orders, optimize, clearAll, routes } = useDelivery();
+  const { orders, optimize, clearAll, routes, optimizing } = useDelivery();
 
   return (
     <div className="flex gap-2">
       <button
         onClick={optimize}
-        disabled={orders.length === 0}
+        disabled={orders.length === 0 || optimizing}
         className="flex-1 bg-green-600 text-white py-3 rounded-lg font-bold text-lg hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow"
       >
-        {routes.length > 0 ? "חשב מחדש" : "תכנן מסלולים"}
+        {optimizing
+          ? "מחשב מסלולים..."
+          : routes.length > 0
+          ? "חשב מחדש"
+          : "תכנן מסלולים"}
       </button>
       {orders.length > 0 && (
         <button
