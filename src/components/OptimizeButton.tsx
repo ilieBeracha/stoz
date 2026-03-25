@@ -10,7 +10,7 @@ export default function OptimizeButton() {
       <button
         onClick={optimize}
         disabled={orders.length === 0 || optimizing}
-        className="flex-1 bg-green-600 text-white py-3 rounded-lg font-bold text-lg hover:bg-green-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow"
+        className="flex-1 bg-green-600 text-white py-3.5 rounded-lg font-bold text-base hover:bg-green-700 active:bg-green-800 disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-md"
       >
         {optimizing
           ? "מחשב מסלולים..."
@@ -21,7 +21,7 @@ export default function OptimizeButton() {
       {orders.length > 0 && (
         <button
           onClick={clearAll}
-          className="px-4 py-3 rounded-lg bg-red-100 text-red-600 font-medium hover:bg-red-200 transition-colors shadow"
+          className="px-5 py-3.5 rounded-lg bg-red-100 text-red-600 font-bold hover:bg-red-200 active:bg-red-300 transition-colors shadow-md"
           title="נקה הכל"
         >
           נקה

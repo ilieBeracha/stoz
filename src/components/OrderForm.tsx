@@ -5,7 +5,11 @@ import { useDelivery } from "@/context/DeliveryContext";
 import { FoodType } from "@/lib/types";
 import { geocodeAddress, searchAddresses, AddressSuggestion } from "@/lib/geocoding";
 
-export default function OrderForm() {
+interface OrderFormProps {
+  onSuccess?: () => void;
+}
+
+export default function OrderForm({ onSuccess }: OrderFormProps) {
   const { addOrder } = useDelivery();
   const [address, setAddress] = useState("");
   const [selectedCoords, setSelectedCoords] = useState<{ lat: number; lng: number } | null>(null);
@@ -35,7 +39,7 @@ export default function OrderForm() {
 
   const handleAddressChange = useCallback((value: string) => {
     setAddress(value);
-    setSelectedCoords(null); // Clear previous selection
+    setSelectedCoords(null);
     setError("");
 
     if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -73,11 +77,9 @@ export default function OrderForm() {
     let lng: number;
 
     if (selectedCoords) {
-      // User picked from autocomplete — coords already known
       lat = selectedCoords.lat;
       lng = selectedCoords.lng;
     } else {
-      // Fallback: try geocoding the raw input
       const geo = await geocodeAddress(address);
       if (!geo) {
         setError("לא נמצאה כתובת. בחר מהרשימה או נסה כתובת מדויקת יותר.");
@@ -103,10 +105,11 @@ export default function OrderForm() {
     setNotes("");
     setError("");
     setLoading(false);
+    onSuccess?.();
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-3 bg-white p-4 rounded-lg shadow">
+    <form onSubmit={handleSubmit} className="space-y-4 bg-white p-4 rounded-lg shadow">
       <h2 className="text-lg font-bold text-gray-800">הזמנה חדשה</h2>
 
       {/* Address with autocomplete */}
@@ -118,20 +121,20 @@ export default function OrderForm() {
           onChange={(e) => handleAddressChange(e.target.value)}
           onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
           placeholder="התחל להקליד כתובת..."
-          className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           required
           autoComplete="off"
         />
         {searchingAddress && (
-          <div className="absolute left-3 top-9 text-xs text-gray-400">מחפש...</div>
+          <div className="absolute left-4 top-10 text-xs text-gray-400">מחפש...</div>
         )}
         {showSuggestions && (
-          <ul className="absolute z-50 w-full bg-white border border-gray-200 rounded-md shadow-lg mt-1 max-h-48 overflow-y-auto">
+          <ul className="absolute z-50 w-full bg-white border border-gray-200 rounded-lg shadow-lg mt-1 max-h-48 overflow-y-auto">
             {suggestions.map((s, i) => (
               <li
                 key={i}
                 onClick={() => selectSuggestion(s)}
-                className="px-3 py-2 text-sm text-gray-700 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-0"
+                className="px-4 py-3 text-sm text-gray-700 hover:bg-blue-50 active:bg-blue-100 cursor-pointer border-b border-gray-100 last:border-0"
               >
                 {s.address}
               </li>
@@ -149,7 +152,7 @@ export default function OrderForm() {
           <select
             value={foodType}
             onChange={(e) => setFoodType(e.target.value as FoodType)}
-            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500"
+            className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:ring-2 focus:ring-blue-500"
           >
             <option value="warm">חם</option>
             <option value="sushi">סושי</option>
@@ -165,7 +168,7 @@ export default function OrderForm() {
             max={75}
             value={deadline}
             onChange={(e) => setDeadline(Math.max(0, Math.min(75, Number(e.target.value))))}
-            className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500"
+            className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:ring-2 focus:ring-blue-500"
             required
           />
         </div>
@@ -178,7 +181,7 @@ export default function OrderForm() {
           value={notes}
           onChange={(e) => setNotes(e.target.value)}
           placeholder="הערות מיוחדות..."
-          className="w-full border border-gray-300 rounded-md px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:ring-2 focus:ring-blue-500 focus:border-transparent"
         />
       </div>
 
@@ -187,7 +190,7 @@ export default function OrderForm() {
       <button
         type="submit"
         disabled={loading}
-        className="w-full bg-blue-600 text-white py-2 rounded-md font-medium hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        className="w-full bg-blue-600 text-white py-3.5 rounded-lg font-bold text-base hover:bg-blue-700 active:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
       >
         {loading ? "מוסיף הזמנה..." : "הוסף הזמנה"}
       </button>
