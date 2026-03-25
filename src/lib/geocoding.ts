@@ -23,11 +23,11 @@ export async function geocodeAddress(
     const params = new URLSearchParams({
       q: address,
       format: "json",
-      limit: "5",
+      limit: "10",
       countrycodes: "il",
       "accept-language": "he",
       viewbox: `${SEARCH_VIEWBOX.minLng},${SEARCH_VIEWBOX.maxLat},${SEARCH_VIEWBOX.maxLng},${SEARCH_VIEWBOX.minLat}`,
-      bounded: "1",
+      bounded: "0",
     });
     const res = await fetch(
       `https://nominatim.openstreetmap.org/search?${params}`,
@@ -66,9 +66,9 @@ export async function searchAddresses(
     const params = new URLSearchParams({
       q: query,
       format: "json",
-      limit: "8",
+      limit: "10",
       viewbox,
-      bounded: "1",
+      bounded: "0",
       countrycodes: "il",
       "accept-language": "he",
     });
