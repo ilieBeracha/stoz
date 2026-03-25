@@ -16,6 +16,7 @@ export const DRIVER_COLORS = [
 export const AVERAGE_SPEED_KMH = 30;
 export const STOP_TIME_MINUTES = 3;
 export const MAX_DRIVERS = 6;
+export const MERGE_DISTANCE_KM = 3; // Clusters closer than this get merged to one driver
 
 export const FOOD_TYPE_LABELS: Record<string, string> = {
   warm: "חם",
