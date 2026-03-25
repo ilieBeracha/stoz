@@ -24,12 +24,25 @@ export const FOOD_TYPE_LABELS: Record<string, string> = {
   both: "חם + סושי",
 };
 
-export const ALLOWED_CITIES = ["הרצליה", "רמת השרון", "כפר שמריהו", "רשפון"];
+// Allowed cities and their common spelling variants in Nominatim results
+export const ALLOWED_CITIES = [
+  "הרצליה",
+  "הרצלייה",
+  "Herzliya",
+  "רמת השרון",
+  "רמת-השרון",
+  "Ramat HaSharon",
+  "Ramat Hasharon",
+  "כפר שמריהו",
+  "Kfar Shmaryahu",
+  "רשפון",
+  "Rishpon",
+];
 
-// Bounding box covering the 4 allowed cities
+// Bounding box covering הרצליה, רמת השרון, כפר שמריהו, רשפון (generous margins)
 export const SEARCH_VIEWBOX = {
-  minLat: 32.12,
-  maxLat: 32.19,
-  minLng: 34.77,
-  maxLng: 34.84,
+  minLat: 32.08,
+  maxLat: 32.20,
+  minLng: 34.75,
+  maxLng: 34.87,
 };

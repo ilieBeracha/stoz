@@ -23,11 +23,11 @@ export async function geocodeAddress(
     const params = new URLSearchParams({
       q: address,
       format: "json",
-      limit: "5",
+      limit: "10",
       countrycodes: "il",
       "accept-language": "he",
       viewbox: `${SEARCH_VIEWBOX.minLng},${SEARCH_VIEWBOX.maxLat},${SEARCH_VIEWBOX.maxLng},${SEARCH_VIEWBOX.minLat}`,
-      bounded: "1",
+      bounded: "0",
     });
     const res = await fetch(
       `https://nominatim.openstreetmap.org/search?${params}`,
@@ -36,16 +36,11 @@ export async function geocodeAddress(
       }
     );
     const data = await res.json();
-
-    // Find first result in an allowed city
-    const match = data.find((item: { display_name: string }) =>
-      ALLOWED_CITIES.some((city) => item.display_name.includes(city))
-    );
-    if (!match) return null;
+    if (data.length === 0) return null;
 
     const result: GeoResult = {
-      lat: parseFloat(match.lat),
-      lng: parseFloat(match.lon),
+      lat: parseFloat(data[0].lat),
+      lng: parseFloat(data[0].lon),
     };
     cache.set(key, result);
     return result;
@@ -66,9 +61,9 @@ export async function searchAddresses(
     const params = new URLSearchParams({
       q: query,
       format: "json",
-      limit: "8",
+      limit: "10",
       viewbox,
-      bounded: "1",
+      bounded: "0",
       countrycodes: "il",
       "accept-language": "he",
     });
