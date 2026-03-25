@@ -5,6 +5,7 @@ import {
   DRIVER_COLORS,
   AVERAGE_SPEED_KMH,
   STOP_TIME_MINUTES,
+  MERGE_DISTANCE_KM,
 } from "@/constants";
 
 // --- Phase 1: Score each order by urgency ---
@@ -113,6 +114,23 @@ function assignOrdersToDrivers(
     }
   }
 
+  // Merge pass: combine clusters whose centroids are within MERGE_DISTANCE_KM
+  // This prevents sending 2 drivers to nearby locations
+  for (let d1 = 0; d1 < driverCount; d1++) {
+    if (assignments.get(d1)!.length === 0) continue;
+    for (let d2 = d1 + 1; d2 < driverCount; d2++) {
+      if (assignments.get(d2)!.length === 0) continue;
+      const c1 = centroid(assignments.get(d1)!);
+      const c2 = centroid(assignments.get(d2)!);
+      const dist = haversine(c1.lat, c1.lng, c2.lat, c2.lng);
+      if (dist <= MERGE_DISTANCE_KM) {
+        // Merge d2 into d1
+        assignments.get(d1)!.push(...assignments.get(d2)!);
+        assignments.set(d2, []);
+      }
+    }
+  }
+
   return assignments;
 }
 
@@ -193,8 +211,8 @@ function postOptimizeSwap(routes: Map<number, Order[]>, driverCount: number) {
           [r1[i], r2[j]] = [r2[j], r1[i]];
           const newDist = totalRouteDistance(r1) + totalRouteDistance(r2);
 
-          if (newDist < currentDist * 0.95) {
-            // Keep swap (only if >5% improvement)
+          if (newDist < currentDist) {
+            // Keep any improvement
           } else {
             // Revert
             [r1[i], r2[j]] = [r2[j], r1[i]];
@@ -238,16 +256,20 @@ export function optimizeRoutes(
   // Phase 4: Post-optimize swaps
   postOptimizeSwap(assignments, effectiveDrivers);
 
-  // Phase 3: Sequence each driver's stops
+  // Phase 3: Sequence each driver's stops (skip empty drivers from merge pass)
+  const activeDriverIds = Array.from({ length: effectiveDrivers }, (_, i) => i).filter(
+    (d) => assignments.get(d)!.length > 0
+  );
+
   const sequenced = new Map<number, Order[]>();
-  for (let d = 0; d < effectiveDrivers; d++) {
+  for (const d of activeDriverIds) {
     sequenced.set(d, sequenceStops(assignments.get(d)!));
   }
 
   // Build planned routes with ETAs
   const routes: PlannedRoute[] = [];
 
-  for (let d = 0; d < effectiveDrivers; d++) {
+  for (const d of activeDriverIds) {
     const driverOrders = sequenced.get(d)!;
     const stops: RouteStop[] = [];
     let prevLat = RESTAURANT_LOCATION.lat;

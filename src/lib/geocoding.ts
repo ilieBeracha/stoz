@@ -1,4 +1,4 @@
-import { RESTAURANT_LOCATION } from "@/constants";
+import { ALLOWED_CITIES, SEARCH_VIEWBOX } from "@/constants";
 
 interface GeoResult {
   lat: number;
@@ -23,7 +23,11 @@ export async function geocodeAddress(
     const params = new URLSearchParams({
       q: address,
       format: "json",
-      limit: "1",
+      limit: "5",
+      countrycodes: "il",
+      "accept-language": "he",
+      viewbox: `${SEARCH_VIEWBOX.minLng},${SEARCH_VIEWBOX.maxLat},${SEARCH_VIEWBOX.maxLng},${SEARCH_VIEWBOX.minLat}`,
+      bounded: "1",
     });
     const res = await fetch(
       `https://nominatim.openstreetmap.org/search?${params}`,
@@ -32,11 +36,16 @@ export async function geocodeAddress(
       }
     );
     const data = await res.json();
-    if (data.length === 0) return null;
+
+    // Find first result in an allowed city
+    const match = data.find((item: { display_name: string }) =>
+      ALLOWED_CITIES.some((city) => item.display_name.includes(city))
+    );
+    if (!match) return null;
 
     const result: GeoResult = {
-      lat: parseFloat(data[0].lat),
-      lng: parseFloat(data[0].lon),
+      lat: parseFloat(match.lat),
+      lng: parseFloat(match.lon),
     };
     cache.set(key, result);
     return result;
@@ -45,28 +54,21 @@ export async function geocodeAddress(
   }
 }
 
-/** Search for address suggestions near the restaurant location */
+/** Search for address suggestions limited to allowed cities */
 export async function searchAddresses(
   query: string
 ): Promise<AddressSuggestion[]> {
   if (query.trim().length < 2) return [];
 
-  // Viewbox: ~15km around restaurant to prioritize local results
-  const delta = 0.15;
-  const viewbox = [
-    RESTAURANT_LOCATION.lng - delta,
-    RESTAURANT_LOCATION.lat + delta,
-    RESTAURANT_LOCATION.lng + delta,
-    RESTAURANT_LOCATION.lat - delta,
-  ].join(",");
+  const viewbox = `${SEARCH_VIEWBOX.minLng},${SEARCH_VIEWBOX.maxLat},${SEARCH_VIEWBOX.maxLng},${SEARCH_VIEWBOX.minLat}`;
 
   try {
     const params = new URLSearchParams({
       q: query,
       format: "json",
-      limit: "5",
+      limit: "8",
       viewbox,
-      bounded: "0",
+      bounded: "1",
       countrycodes: "il",
       "accept-language": "he",
     });
@@ -78,13 +80,17 @@ export async function searchAddresses(
     );
     const data = await res.json();
 
-    return data.map(
-      (item: { display_name: string; lat: string; lon: string }) => ({
+    // Filter to only allowed cities
+    return data
+      .filter((item: { display_name: string }) =>
+        ALLOWED_CITIES.some((city) => item.display_name.includes(city))
+      )
+      .slice(0, 5)
+      .map((item: { display_name: string; lat: string; lon: string }) => ({
         address: item.display_name,
         lat: parseFloat(item.lat),
         lng: parseFloat(item.lon),
-      })
-    );
+      }));
   } catch {
     return [];
   }
