@@ -136,15 +136,30 @@ export default function RouteMap() {
         );
       })}
 
-      {/* Route polylines */}
+      {/* Route polylines — dark outline + colored path for high visibility */}
       {polylines.map((pl, i) => (
         <Polyline
-          key={i}
+          key={`outline-${i}`}
+          positions={pl.positions}
+          pathOptions={{
+            color: "#1a1a2e",
+            weight: 9,
+            opacity: 0.6,
+            lineCap: "round",
+            lineJoin: "round",
+          }}
+        />
+      ))}
+      {polylines.map((pl, i) => (
+        <Polyline
+          key={`route-${i}`}
           positions={pl.positions}
           pathOptions={{
             color: pl.color,
-            weight: 4,
-            opacity: 0.8,
+            weight: 6,
+            opacity: 1,
+            lineCap: "round",
+            lineJoin: "round",
           }}
         />
       ))}
