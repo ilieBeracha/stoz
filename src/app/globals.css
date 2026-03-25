@@ -3,10 +3,25 @@
 
 body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  -webkit-tap-highlight-color: transparent;
+  overscroll-behavior: none;
+}
+
+/* Prevent iOS zoom on input focus */
+input[type="text"],
+input[type="number"],
+select,
+textarea {
+  font-size: 16px !important;
 }
 
 .custom-marker,
 .restaurant-marker {
   background: transparent !important;
   border: none !important;
+}
+
+/* Safe area padding for bottom nav on notched phones */
+.safe-area-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }

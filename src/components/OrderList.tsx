@@ -8,8 +8,8 @@ export default function OrderList() {
 
   if (orders.length === 0) {
     return (
-      <div className="bg-white p-4 rounded-lg shadow text-center text-gray-500 text-sm">
-        אין הזמנות עדיין. הוסף הזמנה חדשה למעלה.
+      <div className="bg-white p-6 rounded-lg shadow text-center text-gray-500 text-sm">
+        אין הזמנות עדיין. הוסף הזמנה חדשה.
       </div>
     );
   }
@@ -21,18 +21,18 @@ export default function OrderList() {
           הזמנות ({orders.length})
         </h2>
       </div>
-      <div className="divide-y divide-gray-100 max-h-64 overflow-y-auto">
+      <div className="divide-y divide-gray-100 max-h-80 overflow-y-auto">
         {orders.map((order) => (
           <div
             key={order.id}
-            className="px-4 py-3 flex items-center justify-between gap-2 hover:bg-gray-50"
+            className="px-4 py-3.5 flex items-center justify-between gap-3"
           >
             <div className="flex-1 min-w-0">
               <p className="text-sm font-medium text-gray-800 truncate">
                 {order.address}
               </p>
-              <div className="flex gap-2 text-xs text-gray-500 mt-1">
-                <span className={`px-1.5 py-0.5 rounded-full font-medium ${
+              <div className="flex gap-2 text-xs text-gray-500 mt-1.5">
+                <span className={`px-2 py-0.5 rounded-full font-medium ${
                   order.foodType === "warm"
                     ? "bg-red-100 text-red-700"
                     : order.foodType === "sushi"
@@ -41,12 +41,12 @@ export default function OrderList() {
                 }`}>
                   {FOOD_TYPE_LABELS[order.foodType]}
                 </span>
-                <span>⏰ {order.deadline} דק׳</span>
+                <span className="flex items-center">⏰ {order.deadline} דק׳</span>
               </div>
             </div>
             <button
               onClick={() => removeOrder(order.id)}
-              className="text-red-400 hover:text-red-600 text-lg flex-shrink-0"
+              className="w-10 h-10 flex items-center justify-center rounded-full text-red-400 hover:bg-red-50 active:bg-red-100 text-lg flex-shrink-0 transition-colors"
               title="מחק"
             >
               ✕
