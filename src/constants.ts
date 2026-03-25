@@ -23,3 +23,13 @@ export const FOOD_TYPE_LABELS: Record<string, string> = {
   sushi: "סושי",
   both: "חם + סושי",
 };
+
+export const ALLOWED_CITIES = ["הרצליה", "רמת השרון", "כפר שמריהו", "רשפון"];
+
+// Bounding box covering the 4 allowed cities
+export const SEARCH_VIEWBOX = {
+  minLat: 32.12,
+  maxLat: 32.19,
+  minLng: 34.77,
+  maxLng: 34.84,
+};
