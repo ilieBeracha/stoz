@@ -49,7 +49,7 @@ export default function RouteSummary() {
                         <span>·</span>
                         <span>{stop.distanceFromPrev} ק״מ</span>
                         <span>·</span>
-                        <span>דדליין: {stop.order.deadline}</span>
+                        <span>דדליין: {stop.order.deadline} דק׳</span>
                       </div>
                     </div>
                   </div>
