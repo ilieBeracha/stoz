@@ -36,16 +36,11 @@ export async function geocodeAddress(
       }
     );
     const data = await res.json();
-
-    // Find first result in an allowed city
-    const match = data.find((item: { display_name: string }) =>
-      ALLOWED_CITIES.some((city) => item.display_name.includes(city))
-    );
-    if (!match) return null;
+    if (data.length === 0) return null;
 
     const result: GeoResult = {
-      lat: parseFloat(match.lat),
-      lng: parseFloat(match.lon),
+      lat: parseFloat(data[0].lat),
+      lng: parseFloat(data[0].lon),
     };
     cache.set(key, result);
     return result;
