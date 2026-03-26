@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useDelivery } from "@/context/DeliveryContext";
 import { FOOD_TYPE_LABELS, RESTAURANT_LOCATION, MERGE_DISTANCE_KM } from "@/constants";
+import Countdown from "@/components/Countdown";
 
 function DebugPanel() {
   const { orders, routes, driverCount } = useDelivery();
@@ -134,7 +135,7 @@ export default function RouteSummary() {
                         <span>·</span>
                         <span>{stop.distanceFromPrev} ק״מ</span>
                         <span>·</span>
-                        <span>דדליין: {stop.order.deadline} דק׳</span>
+                        <Countdown createdAt={stop.order.createdAt} deadlineMinutes={stop.order.deadline} />
                       </div>
                     </div>
                     <button
