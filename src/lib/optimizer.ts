@@ -8,7 +8,7 @@ import {
   MERGE_DISTANCE_KM,
 } from "@/constants";
 
-// --- Phase 1: Score each order by urgency ---
+// --- Urgency scoring ---
 
 function foodTypePenalty(foodType: string): number {
   switch (foodType) {
@@ -27,114 +27,126 @@ function minutesUntilDeadline(order: Order): number {
   const deadlineTime =
     new Date(order.createdAt).getTime() + order.deadline * 60000;
   const diff = (deadlineTime - Date.now()) / 60000;
-  return Math.max(diff, 1); // minimum 1 minute to avoid division by zero
+  return Math.max(diff, 1);
 }
 
 function urgencyScore(order: Order): number {
   const mins = minutesUntilDeadline(order);
   const timeWeight = 10;
   const foodWeight = 5;
-  let score = timeWeight * (1 / mins) + foodWeight * foodTypePenalty(order.foodType);
-  // Boost for very tight deadlines
+  let score =
+    timeWeight * (1 / mins) + foodWeight * foodTypePenalty(order.foodType);
   if (mins < 20) score += 10;
   if (mins < 10) score += 20;
   return score;
 }
 
-// --- Phase 2: Assign orders to drivers (geographic clustering) ---
+// --- Bottom-up clustering: start with 1 group, split only when needed ---
 
-function createDrivers(count: number): Driver[] {
-  return Array.from({ length: count }, (_, i) => ({
-    id: i,
-    name: `נהג ${i + 1}`,
-    color: DRIVER_COLORS[i % DRIVER_COLORS.length],
-  }));
+/** Find the max distance between any two orders in a group */
+function clusterSpread(orders: Order[]): number {
+  if (orders.length <= 1) return 0;
+  let maxDist = 0;
+  for (let i = 0; i < orders.length; i++) {
+    for (let j = i + 1; j < orders.length; j++) {
+      const d = haversine(
+        orders[i].lat,
+        orders[i].lng,
+        orders[j].lat,
+        orders[j].lng
+      );
+      if (d > maxDist) maxDist = d;
+    }
+  }
+  return maxDist;
 }
 
-function centroid(orders: Order[]): { lat: number; lng: number } {
-  if (orders.length === 0) return RESTAURANT_LOCATION;
-  const lat = orders.reduce((sum, o) => sum + o.lat, 0) / orders.length;
-  const lng = orders.reduce((sum, o) => sum + o.lng, 0) / orders.length;
-  return { lat, lng };
+/** Find the two most distant orders in a group (for splitting) */
+function findMostDistantPair(
+  orders: Order[]
+): [Order, Order] {
+  let maxDist = 0;
+  let a = orders[0];
+  let b = orders[1];
+  for (let i = 0; i < orders.length; i++) {
+    for (let j = i + 1; j < orders.length; j++) {
+      const d = haversine(
+        orders[i].lat,
+        orders[i].lng,
+        orders[j].lat,
+        orders[j].lng
+      );
+      if (d > maxDist) {
+        maxDist = d;
+        a = orders[i];
+        b = orders[j];
+      }
+    }
+  }
+  return [a, b];
 }
 
-function assignOrdersToDrivers(
+/** Split a group of orders into 2 clusters around the two most distant orders */
+function splitCluster(orders: Order[]): [Order[], Order[]] {
+  const [seedA, seedB] = findMostDistantPair(orders);
+  const clusterA: Order[] = [seedA];
+  const clusterB: Order[] = [seedB];
+
+  for (const order of orders) {
+    if (order.id === seedA.id || order.id === seedB.id) continue;
+    const distA = haversine(order.lat, order.lng, seedA.lat, seedA.lng);
+    const distB = haversine(order.lat, order.lng, seedB.lat, seedB.lng);
+    if (distA <= distB) {
+      clusterA.push(order);
+    } else {
+      clusterB.push(order);
+    }
+  }
+
+  return [clusterA, clusterB];
+}
+
+/**
+ * Bottom-up clustering: start with all orders in 1 group.
+ * Only split a group when its spread exceeds MERGE_DISTANCE_KM.
+ * Never exceed maxDrivers.
+ */
+function clusterOrders(
   orders: Order[],
-  driverCount: number
-): Map<number, Order[]> {
-  const assignments = new Map<number, Order[]>();
-  for (let i = 0; i < driverCount; i++) assignments.set(i, []);
+  maxDrivers: number
+): Order[][] {
+  if (orders.length === 0) return [];
+  if (orders.length === 1 || maxDrivers === 1) return [orders];
 
-  if (orders.length === 0) return assignments;
+  // Start with all orders in one cluster
+  let clusters: Order[][] = [orders];
 
-  // Sort by urgency descending
-  const sorted = [...orders].sort((a, b) => urgencyScore(b) - urgencyScore(a));
-
-  // Seed: assign top-N urgent orders, one per driver
-  const seeds = sorted.splice(0, Math.min(driverCount, sorted.length));
-  seeds.forEach((order, i) => {
-    assignments.get(i % driverCount)!.push(order);
-  });
-
-  // Assign remaining orders to nearest cluster centroid
-  for (const order of sorted) {
-    let bestDriver = 0;
-    let bestDist = Infinity;
-    for (let d = 0; d < driverCount; d++) {
-      const c = centroid(assignments.get(d)!);
-      const dist = haversine(order.lat, order.lng, c.lat, c.lng);
-      if (dist < bestDist) {
-        bestDist = dist;
-        bestDriver = d;
+  // Keep splitting the widest cluster until we can't or shouldn't
+  while (clusters.length < maxDrivers) {
+    // Find the cluster with the largest spread
+    let worstIdx = -1;
+    let worstSpread = 0;
+    for (let i = 0; i < clusters.length; i++) {
+      if (clusters[i].length < 2) continue;
+      const spread = clusterSpread(clusters[i]);
+      if (spread > worstSpread) {
+        worstSpread = spread;
+        worstIdx = i;
       }
     }
-    assignments.get(bestDriver)!.push(order);
+
+    // If the worst spread is within threshold, stop splitting — one driver can handle it
+    if (worstIdx === -1 || worstSpread <= MERGE_DISTANCE_KM) break;
+
+    // Split that cluster
+    const [a, b] = splitCluster(clusters[worstIdx]);
+    clusters.splice(worstIdx, 1, a, b);
   }
 
-  // Balance pass: if one driver has 2x average, move lowest-urgency to least-loaded
-  const avg = orders.length / driverCount;
-  for (let d = 0; d < driverCount; d++) {
-    const driverOrders = assignments.get(d)!;
-    while (driverOrders.length > avg * 2 && driverOrders.length > 1) {
-      // Find least-loaded driver
-      let minDriver = -1;
-      let minLoad = Infinity;
-      for (let other = 0; other < driverCount; other++) {
-        if (other === d) continue;
-        if (assignments.get(other)!.length < minLoad) {
-          minLoad = assignments.get(other)!.length;
-          minDriver = other;
-        }
-      }
-      if (minDriver === -1) break;
-      // Move least urgent order
-      driverOrders.sort((a, b) => urgencyScore(a) - urgencyScore(b));
-      const moved = driverOrders.shift()!;
-      assignments.get(minDriver)!.push(moved);
-    }
-  }
-
-  // Merge pass: combine clusters whose centroids are within MERGE_DISTANCE_KM
-  // This prevents sending 2 drivers to nearby locations
-  for (let d1 = 0; d1 < driverCount; d1++) {
-    if (assignments.get(d1)!.length === 0) continue;
-    for (let d2 = d1 + 1; d2 < driverCount; d2++) {
-      if (assignments.get(d2)!.length === 0) continue;
-      const c1 = centroid(assignments.get(d1)!);
-      const c2 = centroid(assignments.get(d2)!);
-      const dist = haversine(c1.lat, c1.lng, c2.lat, c2.lng);
-      if (dist <= MERGE_DISTANCE_KM) {
-        // Merge d2 into d1
-        assignments.get(d1)!.push(...assignments.get(d2)!);
-        assignments.set(d2, []);
-      }
-    }
-  }
-
-  return assignments;
+  return clusters;
 }
 
-// --- Phase 3: Sequence stops per driver ---
+// --- Sequence stops per driver ---
 
 function sequenceStops(orders: Order[]): Order[] {
   if (orders.length <= 1) return orders;
@@ -172,7 +184,6 @@ function sequenceStops(orders: Order[]): Order[] {
     const eta = estimateArrivalMinutes(sequence, i);
     const mins = minutesUntilDeadline(sequence[i]);
     if (eta > mins && i > 0) {
-      // Swap with previous
       [sequence[i], sequence[i - 1]] = [sequence[i - 1], sequence[i]];
     }
   }
@@ -195,28 +206,46 @@ function estimateArrivalMinutes(sequence: Order[], stopIndex: number): number {
   return time;
 }
 
-// --- Phase 4: Post-optimization inter-route swap ---
+// --- Post-optimization: try moving orders between drivers ---
 
-function postOptimizeSwap(routes: Map<number, Order[]>, driverCount: number) {
-  for (let d1 = 0; d1 < driverCount; d1++) {
-    for (let d2 = d1 + 1; d2 < driverCount; d2++) {
-      const r1 = routes.get(d1)!;
-      const r2 = routes.get(d2)!;
+function postOptimize(clusters: Order[][]): void {
+  for (let i = 0; i < clusters.length; i++) {
+    for (let j = i + 1; j < clusters.length; j++) {
+      if (clusters[i].length === 0 || clusters[j].length === 0) continue;
 
-      for (let i = 0; i < r1.length; i++) {
-        for (let j = 0; j < r2.length; j++) {
-          const currentDist = totalRouteDistance(r1) + totalRouteDistance(r2);
+      // Try swapping each pair
+      for (let a = 0; a < clusters[i].length; a++) {
+        for (let b = 0; b < clusters[j].length; b++) {
+          const currentDist =
+            totalRouteDistance(clusters[i]) + totalRouteDistance(clusters[j]);
 
-          // Try swapping
-          [r1[i], r2[j]] = [r2[j], r1[i]];
-          const newDist = totalRouteDistance(r1) + totalRouteDistance(r2);
+          [clusters[i][a], clusters[j][b]] = [clusters[j][b], clusters[i][a]];
+          const newDist =
+            totalRouteDistance(clusters[i]) + totalRouteDistance(clusters[j]);
 
-          if (newDist < currentDist) {
-            // Keep any improvement
-          } else {
+          if (newDist >= currentDist) {
             // Revert
-            [r1[i], r2[j]] = [r2[j], r1[i]];
+            [clusters[i][a], clusters[j][b]] = [clusters[j][b], clusters[i][a]];
           }
+        }
+      }
+
+      // Try moving an order from i to j or j to i if it reduces total distance
+      for (let a = clusters[i].length - 1; a >= 0; a--) {
+        if (clusters[i].length <= 1) break;
+        const order = clusters[i][a];
+        const currentDist =
+          totalRouteDistance(clusters[i]) + totalRouteDistance(clusters[j]);
+
+        clusters[i].splice(a, 1);
+        clusters[j].push(order);
+        const newDist =
+          totalRouteDistance(clusters[i]) + totalRouteDistance(clusters[j]);
+
+        if (newDist >= currentDist) {
+          // Revert
+          clusters[j].pop();
+          clusters[i].splice(a, 0, order);
         }
       }
     }
@@ -241,43 +270,44 @@ function formatTime(date: Date): string {
   return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
 }
 
+function createDrivers(count: number): Driver[] {
+  return Array.from({ length: count }, (_, i) => ({
+    id: i,
+    name: `נהג ${i + 1}`,
+    color: DRIVER_COLORS[i % DRIVER_COLORS.length],
+  }));
+}
+
 export function optimizeRoutes(
   orders: Order[],
   driverCount: number
 ): PlannedRoute[] {
   if (orders.length === 0 || driverCount === 0) return [];
 
-  const effectiveDrivers = Math.min(driverCount, orders.length);
-  const drivers = createDrivers(effectiveDrivers);
+  // Bottom-up: cluster by distance, only use multiple drivers when justified
+  const clusters = clusterOrders(orders, driverCount);
 
-  // Phase 2: Assign
-  const assignments = assignOrdersToDrivers(orders, effectiveDrivers);
+  // Post-optimize: try swaps/moves between clusters
+  postOptimize(clusters);
 
-  // Phase 4: Post-optimize swaps
-  postOptimizeSwap(assignments, effectiveDrivers);
+  // Filter out empty clusters
+  const activeClusters = clusters.filter((c) => c.length > 0);
 
-  // Phase 3: Sequence each driver's stops (skip empty drivers from merge pass)
-  const activeDriverIds = Array.from({ length: effectiveDrivers }, (_, i) => i).filter(
-    (d) => assignments.get(d)!.length > 0
-  );
+  // Create drivers for the number of clusters actually needed
+  const drivers = createDrivers(activeClusters.length);
 
-  const sequenced = new Map<number, Order[]>();
-  for (const d of activeDriverIds) {
-    sequenced.set(d, sequenceStops(assignments.get(d)!));
-  }
-
-  // Build planned routes with ETAs
+  // Sequence each cluster and build routes
   const routes: PlannedRoute[] = [];
 
-  for (const d of activeDriverIds) {
-    const driverOrders = sequenced.get(d)!;
+  for (let i = 0; i < activeClusters.length; i++) {
+    const sequenced = sequenceStops(activeClusters[i]);
     const stops: RouteStop[] = [];
     let prevLat = RESTAURANT_LOCATION.lat;
     let prevLng = RESTAURANT_LOCATION.lng;
     let cumulativeMinutes = 0;
     let totalDist = 0;
 
-    for (const order of driverOrders) {
+    for (const order of sequenced) {
       const dist = haversine(prevLat, prevLng, order.lat, order.lng);
       const travelMin = (dist / AVERAGE_SPEED_KMH) * 60;
       cumulativeMinutes += travelMin + STOP_TIME_MINUTES;
@@ -297,7 +327,7 @@ export function optimizeRoutes(
     }
 
     routes.push({
-      driver: drivers[d],
+      driver: drivers[i],
       stops,
       totalDistance: Math.round(totalDist * 10) / 10,
       totalTime: Math.round(cumulativeMinutes),
