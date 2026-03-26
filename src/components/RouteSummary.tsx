@@ -1,16 +1,101 @@
 "use client";
 
+import { useState } from "react";
 import { useDelivery } from "@/context/DeliveryContext";
-import { FOOD_TYPE_LABELS } from "@/constants";
+import { FOOD_TYPE_LABELS, RESTAURANT_LOCATION, MERGE_DISTANCE_KM } from "@/constants";
+
+function DebugPanel() {
+  const { orders, routes, driverCount } = useDelivery();
+  const [copied, setCopied] = useState(false);
+
+  const debugData = {
+    restaurant: { lat: RESTAURANT_LOCATION.lat, lng: RESTAURANT_LOCATION.lng },
+    mergeDistanceKm: MERGE_DISTANCE_KM,
+    driverCount,
+    orders: orders.map((o) => ({
+      id: o.id.slice(0, 8),
+      address: o.address,
+      lat: o.lat,
+      lng: o.lng,
+      foodType: o.foodType,
+      deadline: o.deadline,
+      createdAt: o.createdAt,
+    })),
+    routes: routes.map((r) => ({
+      driver: r.driver.name,
+      color: r.driver.color,
+      totalDistance: r.realDistance ?? r.totalDistance,
+      totalTime: r.realDuration ?? r.totalTime,
+      stops: r.stops.map((s) => ({
+        address: s.order.address,
+        lat: s.order.lat,
+        lng: s.order.lng,
+        foodType: s.order.foodType,
+        distFromPrev: s.distanceFromPrev,
+        eta: s.estimatedArrival,
+      })),
+    })),
+  };
+
+  const text = JSON.stringify(debugData, null, 2);
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      // Fallback for older browsers
+      const el = document.createElement("textarea");
+      el.value = text;
+      document.body.appendChild(el);
+      el.select();
+      document.execCommand("copy");
+      document.body.removeChild(el);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  return (
+    <div className="bg-gray-900 text-gray-200 rounded-lg p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-bold">Debug Data</span>
+        <button
+          onClick={handleCopy}
+          className="px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 active:bg-blue-800 transition-colors"
+        >
+          {copied ? "✓ הועתק!" : "העתק"}
+        </button>
+      </div>
+      <pre className="text-xs overflow-x-auto max-h-48 overflow-y-auto whitespace-pre-wrap break-all">
+        {text}
+      </pre>
+    </div>
+  );
+}
 
 export default function RouteSummary() {
   const { routes } = useDelivery();
+  const [showDebug, setShowDebug] = useState(false);
 
   if (routes.length === 0) return null;
 
   return (
     <div className="space-y-3">
-      <h2 className="text-lg font-bold text-gray-800">מסלולים מתוכננים</h2>
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-bold text-gray-800">מסלולים מתוכננים</h2>
+        <button
+          onClick={() => setShowDebug(!showDebug)}
+          className="w-8 h-8 rounded-full bg-gray-200 hover:bg-gray-300 active:bg-gray-400 flex items-center justify-center text-gray-600 text-sm font-bold transition-colors"
+          title="Debug info"
+        >
+          i
+        </button>
+      </div>
+
+      {showDebug && <DebugPanel />}
+
       {routes.map((route) => {
         const distance = route.realDistance ?? route.totalDistance;
         const duration = route.realDuration ?? route.totalTime;
