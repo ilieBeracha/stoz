@@ -41,19 +41,24 @@ function urgencyScore(order: Order): number {
   return score;
 }
 
-// --- Bottom-up clustering: start with 1 group, split only when needed ---
+// --- Helpers ---
 
-/** Find the max distance between any two orders in a group */
+function centroid(orders: Order[]): { lat: number; lng: number } {
+  if (orders.length === 0) return RESTAURANT_LOCATION;
+  const lat = orders.reduce((sum, o) => sum + o.lat, 0) / orders.length;
+  const lng = orders.reduce((sum, o) => sum + o.lng, 0) / orders.length;
+  return { lat, lng };
+}
+
+/** Max distance between any two orders in a group */
 function clusterSpread(orders: Order[]): number {
   if (orders.length <= 1) return 0;
   let maxDist = 0;
   for (let i = 0; i < orders.length; i++) {
     for (let j = i + 1; j < orders.length; j++) {
       const d = haversine(
-        orders[i].lat,
-        orders[i].lng,
-        orders[j].lat,
-        orders[j].lng
+        orders[i].lat, orders[i].lng,
+        orders[j].lat, orders[j].lng
       );
       if (d > maxDist) maxDist = d;
     }
@@ -61,55 +66,100 @@ function clusterSpread(orders: Order[]): number {
   return maxDist;
 }
 
-/** Find the two most distant orders in a group (for splitting) */
-function findMostDistantPair(
-  orders: Order[]
-): [Order, Order] {
-  let maxDist = 0;
-  let a = orders[0];
-  let b = orders[1];
-  for (let i = 0; i < orders.length; i++) {
-    for (let j = i + 1; j < orders.length; j++) {
-      const d = haversine(
-        orders[i].lat,
-        orders[i].lng,
-        orders[j].lat,
-        orders[j].lng
-      );
-      if (d > maxDist) {
-        maxDist = d;
-        a = orders[i];
-        b = orders[j];
+/** Optimal route distance: sequence by nearest-neighbor from restaurant */
+function optimalRouteDistance(orders: Order[]): number {
+  if (orders.length === 0) return 0;
+  const visited: Order[] = [];
+  const remaining = new Set(orders.map((o) => o.id));
+  let curLat = RESTAURANT_LOCATION.lat;
+  let curLng = RESTAURANT_LOCATION.lng;
+  let totalDist = 0;
+
+  while (remaining.size > 0) {
+    let bestDist = Infinity;
+    let bestOrder: Order | null = null;
+    for (const order of orders) {
+      if (!remaining.has(order.id)) continue;
+      const d = haversine(curLat, curLng, order.lat, order.lng);
+      if (d < bestDist) {
+        bestDist = d;
+        bestOrder = order;
       }
     }
+    if (!bestOrder) break;
+    totalDist += bestDist;
+    remaining.delete(bestOrder.id);
+    visited.push(bestOrder);
+    curLat = bestOrder.lat;
+    curLng = bestOrder.lng;
   }
-  return [a, b];
+
+  return totalDist;
 }
 
-/** Split a group of orders into 2 clusters around the two most distant orders */
-function splitCluster(orders: Order[]): [Order[], Order[]] {
-  const [seedA, seedB] = findMostDistantPair(orders);
-  const clusterA: Order[] = [seedA];
-  const clusterB: Order[] = [seedB];
+// --- Clustering ---
 
-  for (const order of orders) {
-    if (order.id === seedA.id || order.id === seedB.id) continue;
-    const distA = haversine(order.lat, order.lng, seedA.lat, seedA.lng);
-    const distB = haversine(order.lat, order.lng, seedB.lat, seedB.lng);
-    if (distA <= distB) {
-      clusterA.push(order);
-    } else {
-      clusterB.push(order);
+/**
+ * K-means style reassignment: given cluster centroids, reassign every order
+ * to its nearest centroid. Repeat until stable.
+ */
+function reassignToCentroids(
+  allOrders: Order[],
+  clusters: Order[][]
+): Order[][] {
+  for (let iter = 0; iter < 20; iter++) {
+    // Compute centroids
+    const centroids = clusters.map((c) => centroid(c));
+
+    // Reassign each order to nearest centroid
+    const newClusters: Order[][] = clusters.map(() => []);
+    for (const order of allOrders) {
+      let bestCluster = 0;
+      let bestDist = Infinity;
+      for (let c = 0; c < centroids.length; c++) {
+        const d = haversine(
+          order.lat, order.lng,
+          centroids[c].lat, centroids[c].lng
+        );
+        if (d < bestDist) {
+          bestDist = d;
+          bestCluster = c;
+        }
+      }
+      newClusters[bestCluster].push(order);
     }
+
+    // Check if anything changed
+    let changed = false;
+    for (let c = 0; c < clusters.length; c++) {
+      if (clusters[c].length !== newClusters[c].length) {
+        changed = true;
+        break;
+      }
+      const ids1 = new Set(clusters[c].map((o) => o.id));
+      const ids2 = new Set(newClusters[c].map((o) => o.id));
+      for (const id of ids1) {
+        if (!ids2.has(id)) {
+          changed = true;
+          break;
+        }
+      }
+      if (changed) break;
+    }
+
+    clusters = newClusters;
+    if (!changed) break;
   }
 
-  return [clusterA, clusterB];
+  return clusters;
 }
 
 /**
- * Bottom-up clustering: start with all orders in 1 group.
- * Only split a group when its spread exceeds MERGE_DISTANCE_KM.
- * Never exceed maxDrivers.
+ * Bottom-up clustering with centroid reassignment.
+ * 1. Start with all orders in 1 group
+ * 2. Split widest cluster if spread > MERGE_DISTANCE_KM
+ * 3. After each split, reassign ALL orders to nearest centroid (k-means)
+ * 4. Stop when no cluster needs splitting or max drivers reached
  */
 function clusterOrders(
   orders: Order[],
@@ -118,10 +168,8 @@ function clusterOrders(
   if (orders.length === 0) return [];
   if (orders.length === 1 || maxDrivers === 1) return [orders];
 
-  // Start with all orders in one cluster
   let clusters: Order[][] = [orders];
 
-  // Keep splitting the widest cluster until we can't or shouldn't
   while (clusters.length < maxDrivers) {
     // Find the cluster with the largest spread
     let worstIdx = -1;
@@ -135,15 +183,95 @@ function clusterOrders(
       }
     }
 
-    // If the worst spread is within threshold, stop splitting — one driver can handle it
+    // Stop if no cluster exceeds the threshold
     if (worstIdx === -1 || worstSpread <= MERGE_DISTANCE_KM) break;
 
-    // Split that cluster
-    const [a, b] = splitCluster(clusters[worstIdx]);
-    clusters.splice(worstIdx, 1, a, b);
+    // Find the two most distant orders in that cluster as new seeds
+    const clusterToSplit = clusters[worstIdx];
+    let maxDist = 0;
+    let seedA = clusterToSplit[0];
+    let seedB = clusterToSplit[1];
+    for (let i = 0; i < clusterToSplit.length; i++) {
+      for (let j = i + 1; j < clusterToSplit.length; j++) {
+        const d = haversine(
+          clusterToSplit[i].lat, clusterToSplit[i].lng,
+          clusterToSplit[j].lat, clusterToSplit[j].lng
+        );
+        if (d > maxDist) {
+          maxDist = d;
+          seedA = clusterToSplit[i];
+          seedB = clusterToSplit[j];
+        }
+      }
+    }
+
+    // Create new cluster with seedB, keep seedA in existing
+    const newCluster: Order[] = [seedB];
+    clusters[worstIdx] = [seedA];
+    // Temporarily add unassigned orders back
+    const unassigned = clusterToSplit.filter(
+      (o) => o.id !== seedA.id && o.id !== seedB.id
+    );
+    // Put them all in the first cluster temporarily
+    clusters[worstIdx].push(...unassigned);
+    clusters.push(newCluster);
+
+    // Reassign ALL orders across ALL clusters by nearest centroid
+    const allOrders = clusters.flat();
+    clusters = reassignToCentroids(allOrders, clusters);
+
+    // Remove any empty clusters
+    clusters = clusters.filter((c) => c.length > 0);
   }
 
   return clusters;
+}
+
+// --- Post-optimization: move orders between clusters if it reduces total ---
+
+function postOptimize(clusters: Order[][]): void {
+  // Multiple rounds — one move can enable further improvements
+  for (let round = 0; round < 3; round++) {
+    let improved = false;
+
+    for (let i = 0; i < clusters.length; i++) {
+      for (let j = 0; j < clusters.length; j++) {
+        if (i === j) continue;
+        if (clusters[i].length === 0) continue;
+
+        // Try moving each order from cluster i to cluster j
+        for (let a = clusters[i].length - 1; a >= 0; a--) {
+          if (clusters[i].length <= 1) break;
+
+          const order = clusters[i][a];
+
+          // Use optimal (nearest-neighbor sequenced) route distance
+          const currentTotal =
+            optimalRouteDistance(clusters[i]) +
+            optimalRouteDistance(clusters[j]);
+
+          const newI = clusters[i].filter((_, idx) => idx !== a);
+          const newJ = [...clusters[j], order];
+          const newTotal =
+            optimalRouteDistance(newI) + optimalRouteDistance(newJ);
+
+          if (newTotal < currentTotal - 0.1) {
+            // Keep the move (0.1km threshold to avoid floating point noise)
+            clusters[i] = newI;
+            clusters[j] = newJ;
+            improved = true;
+          }
+        }
+      }
+    }
+
+    if (!improved) break;
+  }
+
+  // Remove empty clusters
+  for (let i = clusters.length - 1; i >= 0; i--) {
+    if (clusters[i].length === 0) clusters.splice(i, 1);
+  }
 }
 
 // --- Sequence stops per driver ---
@@ -206,64 +334,6 @@ function estimateArrivalMinutes(sequence: Order[], stopIndex: number): number {
   return time;
 }
 
-// --- Post-optimization: try moving orders between drivers ---
-
-function postOptimize(clusters: Order[][]): void {
-  for (let i = 0; i < clusters.length; i++) {
-    for (let j = i + 1; j < clusters.length; j++) {
-      if (clusters[i].length === 0 || clusters[j].length === 0) continue;
-
-      // Try swapping each pair
-      for (let a = 0; a < clusters[i].length; a++) {
-        for (let b = 0; b < clusters[j].length; b++) {
-          const currentDist =
-            totalRouteDistance(clusters[i]) + totalRouteDistance(clusters[j]);
-
-          [clusters[i][a], clusters[j][b]] = [clusters[j][b], clusters[i][a]];
-          const newDist =
-            totalRouteDistance(clusters[i]) + totalRouteDistance(clusters[j]);
-
-          if (newDist >= currentDist) {
-            // Revert
-            [clusters[i][a], clusters[j][b]] = [clusters[j][b], clusters[i][a]];
-          }
-        }
-      }
-
-      // Try moving an order from i to j or j to i if it reduces total distance
-      for (let a = clusters[i].length - 1; a >= 0; a--) {
-        if (clusters[i].length <= 1) break;
-        const order = clusters[i][a];
-        const currentDist =
-          totalRouteDistance(clusters[i]) + totalRouteDistance(clusters[j]);
-
-        clusters[i].splice(a, 1);
-        clusters[j].push(order);
-        const newDist =
-          totalRouteDistance(clusters[i]) + totalRouteDistance(clusters[j]);
-
-        if (newDist >= currentDist) {
-          // Revert
-          clusters[j].pop();
-          clusters[i].splice(a, 0, order);
-        }
-      }
-    }
-  }
-}
-
-function totalRouteDistance(orders: Order[]): number {
-  let dist = 0;
-  let prevLat = RESTAURANT_LOCATION.lat;
-  let prevLng = RESTAURANT_LOCATION.lng;
-  for (const order of orders) {
-    dist += haversine(prevLat, prevLng, order.lat, order.lng);
-    prevLat = order.lat;
-    prevLng = order.lng;
-  }
-  return dist;
-}
-
 // --- Main optimizer ---
 
 function formatTime(date: Date): string {
@@ -284,23 +354,23 @@ export function optimizeRoutes(
 ): PlannedRoute[] {
   if (orders.length === 0 || driverCount === 0) return [];
 
-  // Bottom-up: cluster by distance, only use multiple drivers when justified
-  const clusters = clusterOrders(orders, driverCount);
+  // Cluster by distance — only split when distance justifies it
+  let clusters = clusterOrders(orders, driverCount);
 
-  // Post-optimize: try swaps/moves between clusters
+  // Post-optimize: move orders between clusters using optimal route distances
   postOptimize(clusters);
 
-  // Filter out empty clusters
-  const activeClusters = clusters.filter((c) => c.length > 0);
+  // Filter empty clusters
+  clusters = clusters.filter((c) => c.length > 0);
 
-  // Create drivers for the number of clusters actually needed
-  const drivers = createDrivers(activeClusters.length);
+  // Create drivers for clusters actually used
+  const drivers = createDrivers(clusters.length);
 
   // Sequence each cluster and build routes
   const routes: PlannedRoute[] = [];
 
-  for (let i = 0; i < activeClusters.length; i++) {
-    const sequenced = sequenceStops(activeClusters[i]);
+  for (let i = 0; i < clusters.length; i++) {
+    const sequenced = sequenceStops(clusters[i]);
     const stops: RouteStop[] = [];
     let prevLat = RESTAURANT_LOCATION.lat;
     let prevLng = RESTAURANT_LOCATION.lng;
