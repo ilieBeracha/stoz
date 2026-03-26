@@ -162,6 +162,22 @@ export default function OrderForm({ onSuccess }: OrderFormProps) {
 
         <div className="flex-1">
           <label className="block text-sm font-medium text-gray-700 mb-1">זמן למשלוח (דקות)</label>
+          <div className="flex gap-1.5 mb-2">
+            {[20, 30, 45, 60].map((min) => (
+              <button
+                key={min}
+                type="button"
+                onClick={() => setDeadline(min)}
+                className={`flex-1 py-2 rounded-lg text-sm font-bold transition-colors ${
+                  deadline === min
+                    ? "bg-blue-600 text-white"
+                    : "bg-gray-100 text-gray-600 hover:bg-gray-200 active:bg-gray-300"
+                }`}
+              >
+                {min}
+              </button>
+            ))}
+          </div>
           <input
             type="number"
             min={0}

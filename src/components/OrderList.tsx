@@ -2,6 +2,7 @@
 
 import { useDelivery } from "@/context/DeliveryContext";
 import { FOOD_TYPE_LABELS } from "@/constants";
+import Countdown from "@/components/Countdown";
 
 export default function OrderList() {
   const { orders, removeOrder } = useDelivery();
@@ -41,7 +42,7 @@ export default function OrderList() {
                 }`}>
                   {FOOD_TYPE_LABELS[order.foodType]}
                 </span>
-                <span className="flex items-center">⏰ {order.deadline} דק׳</span>
+                <Countdown createdAt={order.createdAt} deadlineMinutes={order.deadline} />
               </div>
             </div>
             <button
