@@ -141,9 +141,10 @@ function wouldMissDeadline(orders: Order[]): boolean {
 
 /**
  * Determine if a cluster needs splitting.
- * Split only when:
+ * Split when:
  * 1. A single driver would miss deadlines, OR
- * 2. The cluster spans genuinely separate areas (spread > 8km)
+ * 2. Splitting would significantly reduce delivery time (>30% faster), OR
+ * 3. The cluster spans genuinely separate areas (spread > 8km)
  *
  * Returns a priority score (0 = don't split, higher = more urgent).
  */
@@ -155,11 +156,58 @@ function splitPriority(orders: Order[]): number {
     return 100 + routeTimeMinutes(greedySequence(orders));
   }
 
+  // Efficiency check: would splitting save significant time?
+  // Try a trial split and compare max route time
+  const currentTime = routeTimeMinutes(greedySequence(orders));
+  if (currentTime > 10 && orders.length >= 2) {
+    const [clusterA, clusterB] = trialSplit(orders);
+    if (clusterA.length > 0 && clusterB.length > 0) {
+      const splitMaxTime = Math.max(
+        routeTimeMinutes(greedySequence(clusterA)),
+        routeTimeMinutes(greedySequence(clusterB))
+      );
+      // If splitting cuts the longest route by >30%, it's worth it
+      if (splitMaxTime < currentTime * 0.7) {
+        return 50 + (currentTime - splitMaxTime);
+      }
+    }
+  }
+
   // Check if genuinely separate areas (e.g., different cities)
   const spread = clusterSpread(orders);
   if (spread > 8) return spread;
 
   return 0; // Don't split — one driver can handle it
+}
+
+/** Trial split: find most distant pair and split around them */
+function trialSplit(orders: Order[]): [Order[], Order[]] {
+  let maxDist = 0;
+  let seedA = orders[0];
+  let seedB = orders[1];
+  for (let i = 0; i < orders.length; i++) {
+    for (let j = i + 1; j < orders.length; j++) {
+      const d = haversine(
+        orders[i].lat, orders[i].lng,
+        orders[j].lat, orders[j].lng
+      );
+      if (d > maxDist) {
+        maxDist = d;
+        seedA = orders[i];
+        seedB = orders[j];
+      }
+    }
+  }
+
+  const cA: Order[] = [];
+  const cB: Order[] = [];
+  for (const order of orders) {
+    const dA = haversine(order.lat, order.lng, seedA.lat, seedA.lng);
+    const dB = haversine(order.lat, order.lng, seedB.lat, seedB.lng);
+    if (dA <= dB) cA.push(order);
+    else cB.push(order);
+  }
+  return [cA, cB];
 }
 
 /** K-means reassignment until stable */
