@@ -1,7 +1,8 @@
-import { Order } from "./types";
+import { Order, DeliveredOrder } from "./types";
 
 const ORDERS_KEY = "stoz_orders";
 const DRIVERS_KEY = "stoz_drivers";
+const HISTORY_KEY = "stoz_history";
 
 export function loadOrders(): Order[] {
   if (typeof window === "undefined") return [];
@@ -31,4 +32,19 @@ export function loadDriverCount(): number {
 export function saveDriverCount(count: number) {
   if (typeof window === "undefined") return;
   localStorage.setItem(DRIVERS_KEY, String(count));
+}
+
+export function loadHistory(): DeliveredOrder[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const raw = localStorage.getItem(HISTORY_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function saveHistory(history: DeliveredOrder[]) {
+  if (typeof window === "undefined") return;
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(history));
 }
