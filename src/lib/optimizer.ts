@@ -113,15 +113,27 @@ function wouldMissDeadline(orders: Order[]): boolean {
   let time = 0;
   let prevLat = RESTAURANT_LOCATION.lat;
   let prevLng = RESTAURANT_LOCATION.lng;
+  let hasActiveFutureDeadline = false;
+
   for (const order of seq) {
     const dist = haversine(prevLat, prevLng, order.lat, order.lng);
     time += (dist / AVERAGE_SPEED_KMH) * 60 + STOP_TIME_MINUTES;
     const deadline = minutesUntilDeadline(order);
-    // If ETA exceeds 90% of deadline, it's at risk
-    if (time > deadline * 0.9) return true;
+
+    // Only consider deadlines that are still in the future (> 5 min remaining)
+    // Expired deadlines should not trigger splitting — the food is already late
+    if (deadline > 5) {
+      hasActiveFutureDeadline = true;
+      if (time > deadline * 0.9) return true;
+    }
+
     prevLat = order.lat;
     prevLng = order.lng;
   }
+
+  // If no active future deadlines, don't split based on time
+  if (!hasActiveFutureDeadline) return false;
+
   return false;
 }
 
