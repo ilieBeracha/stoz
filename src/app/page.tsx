@@ -8,6 +8,7 @@ import OrderList from "@/components/OrderList";
 import DriverSettings from "@/components/DriverSettings";
 import OptimizeButton from "@/components/OptimizeButton";
 import RouteSummary from "@/components/RouteSummary";
+import DeliveryHistory from "@/components/DeliveryHistory";
 
 const RouteMap = dynamic(() => import("@/components/RouteMap"), {
   ssr: false,
@@ -18,11 +19,11 @@ const RouteMap = dynamic(() => import("@/components/RouteMap"), {
   ),
 });
 
-type MobileTab = "map" | "add" | "orders";
+type MobileTab = "map" | "add" | "orders" | "history";
 
 function MobileLayout() {
   const [activeTab, setActiveTab] = useState<MobileTab>("map");
-  const { orders, routes } = useDelivery();
+  const { orders, routes, history } = useDelivery();
 
   return (
     <div className="flex flex-col h-[100dvh] overflow-hidden">
@@ -31,7 +32,6 @@ function MobileLayout() {
         {/* Map tab — always rendered, hidden when not active */}
         <div className={`absolute inset-0 ${activeTab === "map" ? "z-10" : "z-0 pointer-events-none"}`}>
           <RouteMap />
-          {/* Floating controls on map */}
           {activeTab === "map" && (
             <>
               <div className="absolute top-3 right-3 z-[1000]">
@@ -56,6 +56,13 @@ function MobileLayout() {
           <div className="absolute inset-0 z-20 bg-gray-100 overflow-y-auto p-4 pb-24 space-y-4">
             <OrderList />
             <RouteSummary />
+          </div>
+        )}
+
+        {/* History tab */}
+        {activeTab === "history" && (
+          <div className="absolute inset-0 z-20 bg-gray-100 overflow-y-auto p-4 pb-24">
+            <DeliveryHistory />
           </div>
         )}
       </div>
@@ -99,9 +106,25 @@ function MobileLayout() {
               {orders.length}
             </span>
           )}
-          {routes.length > 0 && (
+          {routes.length > 0 && !orders.length && (
             <span className="absolute top-2 right-1/2 translate-x-5 bg-green-500 text-white text-[10px] font-bold w-4 h-4 rounded-full flex items-center justify-center">
               {routes.length}
+            </span>
+          )}
+        </button>
+        <button
+          onClick={() => setActiveTab("history")}
+          className={`flex-1 flex flex-col items-center py-3 gap-1 transition-colors relative ${
+            activeTab === "history" ? "text-blue-600" : "text-gray-500"
+          }`}
+        >
+          <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <span className="text-xs font-medium">היסטוריה</span>
+          {history.length > 0 && (
+            <span className="absolute top-2 right-1/2 translate-x-5 bg-gray-500 text-white text-[10px] font-bold min-w-[16px] h-4 px-1 rounded-full flex items-center justify-center">
+              {history.length}
             </span>
           )}
         </button>
@@ -113,7 +136,6 @@ function MobileLayout() {
 function DesktopLayout() {
   return (
     <div className="min-h-screen flex flex-col">
-      {/* Header */}
       <header className="bg-white shadow-sm border-b border-gray-200">
         <div className="max-w-screen-2xl mx-auto px-4 py-3 flex items-center justify-between">
           <h1 className="text-2xl font-bold text-gray-800">
@@ -126,18 +148,16 @@ function DesktopLayout() {
         </div>
       </header>
 
-      {/* Main content */}
       <main className="flex-1 max-w-screen-2xl mx-auto w-full p-4">
         <div className="flex flex-col lg:flex-row gap-4 h-full">
-          {/* Controls panel */}
           <div className="lg:w-96 flex-shrink-0 space-y-4">
             <OrderForm />
             <OptimizeButton />
             <OrderList />
             <RouteSummary />
+            <DeliveryHistory />
           </div>
 
-          {/* Map panel */}
           <div className="flex-1 min-h-[500px] lg:min-h-0">
             <div className="h-full min-h-[500px] lg:h-[calc(100vh-100px)] sticky top-4">
               <RouteMap />
@@ -152,11 +172,9 @@ function DesktopLayout() {
 export default function Home() {
   return (
     <DeliveryProvider>
-      {/* Mobile layout */}
       <div className="lg:hidden">
         <MobileLayout />
       </div>
-      {/* Desktop layout */}
       <div className="hidden lg:block">
         <DesktopLayout />
       </div>

@@ -23,6 +23,13 @@ export interface RouteStop {
   distanceFromPrev: number; // km
 }
 
+export interface DeliveredOrder {
+  order: Order;
+  driverName: string;
+  driverColor: string;
+  deliveredAt: string; // ISO timestamp
+}
+
 export interface PlannedRoute {
   driver: Driver;
   stops: RouteStop[];

@@ -76,7 +76,7 @@ function DebugPanel() {
 }
 
 export default function RouteSummary() {
-  const { routes } = useDelivery();
+  const { routes, markDelivered } = useDelivery();
   const [showDebug, setShowDebug] = useState(false);
 
   if (routes.length === 0) return null;
@@ -137,6 +137,13 @@ export default function RouteSummary() {
                         <span>דדליין: {stop.order.deadline} דק׳</span>
                       </div>
                     </div>
+                    <button
+                      onClick={() => markDelivered(stop.order.id)}
+                      className="w-10 h-10 rounded-full bg-green-100 hover:bg-green-200 active:bg-green-300 flex items-center justify-center text-green-600 flex-shrink-0 transition-colors"
+                      title="סמן כנמסר"
+                    >
+                      ✓
+                    </button>
                   </div>
                 ))}
               </div>
