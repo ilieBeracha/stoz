@@ -9,36 +9,29 @@ export default function OrderList() {
 
   if (orders.length === 0) {
     return (
-      <div className="bg-white p-6 rounded-lg shadow text-center text-gray-500 text-sm">
-        אין הזמנות עדיין. הוסף הזמנה חדשה.
+      <div className="text-center text-[var(--text-secondary)] text-sm py-8">
+        אין הזמנות פעילות
       </div>
     );
   }
 
   return (
-    <div className="bg-white rounded-lg shadow overflow-hidden">
-      <div className="px-4 py-3 border-b border-gray-200">
-        <h2 className="text-lg font-bold text-gray-800">
-          הזמנות ({orders.length})
-        </h2>
+    <div className="bg-white border border-[var(--border)] rounded-2xl overflow-hidden">
+      <div className="px-4 py-3 border-b border-[var(--border)]">
+        <span className="text-sm font-semibold">{orders.length} הזמנות</span>
       </div>
-      <div className="divide-y divide-gray-100 max-h-80 overflow-y-auto">
+      <div className="divide-y divide-[var(--border)] max-h-80 overflow-y-auto">
         {orders.map((order) => (
-          <div
-            key={order.id}
-            className="px-4 py-3.5 flex items-center justify-between gap-3"
-          >
+          <div key={order.id} className="px-4 py-3 flex items-center gap-3">
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-gray-800 truncate">
-                {order.address}
-              </p>
-              <div className="flex gap-2 text-xs text-gray-500 mt-1.5">
-                <span className={`px-2 py-0.5 rounded-full font-medium ${
+              <p className="text-sm font-medium truncate">{order.address}</p>
+              <div className="flex items-center gap-2 mt-1.5">
+                <span className={`text-[11px] font-semibold px-2 py-0.5 rounded-md ${
                   order.foodType === "warm"
-                    ? "bg-red-100 text-red-700"
+                    ? "bg-red-50 text-red-600"
                     : order.foodType === "sushi"
-                    ? "bg-blue-100 text-blue-700"
-                    : "bg-purple-100 text-purple-700"
+                    ? "bg-blue-50 text-blue-600"
+                    : "bg-purple-50 text-purple-600"
                 }`}>
                   {FOOD_TYPE_LABELS[order.foodType]}
                 </span>
@@ -47,8 +40,7 @@ export default function OrderList() {
             </div>
             <button
               onClick={() => removeOrder(order.id)}
-              className="w-10 h-10 flex items-center justify-center rounded-full text-red-400 hover:bg-red-50 active:bg-red-100 text-lg flex-shrink-0 transition-colors"
-              title="מחק"
+              className="w-8 h-8 flex items-center justify-center rounded-lg text-[var(--text-secondary)] hover:text-[var(--red)] hover:bg-red-50 active:bg-red-100 text-sm transition-colors"
             >
               ✕
             </button>

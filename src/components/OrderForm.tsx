@@ -19,14 +19,12 @@ export default function OrderForm({ onSuccess }: OrderFormProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // Autocomplete state
   const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [searchingAddress, setSearchingAddress] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout>>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
 
-  // Close dropdown on outside click
   useEffect(() => {
     function handleClick(e: MouseEvent) {
       if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
@@ -41,15 +39,12 @@ export default function OrderForm({ onSuccess }: OrderFormProps) {
     setAddress(value);
     setSelectedCoords(null);
     setError("");
-
     if (debounceRef.current) clearTimeout(debounceRef.current);
-
     if (value.trim().length < 2) {
       setSuggestions([]);
       setShowSuggestions(false);
       return;
     }
-
     debounceRef.current = setTimeout(async () => {
       setSearchingAddress(true);
       const results = await searchAddresses(value);
@@ -69,36 +64,24 @@ export default function OrderForm({ onSuccess }: OrderFormProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!address.trim()) return;
-
     setLoading(true);
     setError("");
-
     let lat: number;
     let lng: number;
-
     if (selectedCoords) {
       lat = selectedCoords.lat;
       lng = selectedCoords.lng;
     } else {
       const geo = await geocodeAddress(address);
       if (!geo) {
-        setError("לא נמצאה כתובת. בחר מהרשימה או נסה כתובת מדויקת יותר.");
+        setError("לא נמצאה כתובת. בחר מהרשימה או נסה שוב.");
         setLoading(false);
         return;
       }
       lat = geo.lat;
       lng = geo.lng;
     }
-
-    addOrder({
-      address: address.trim(),
-      lat,
-      lng,
-      foodType,
-      deadline,
-      notes: notes.trim() || undefined,
-    });
-
+    addOrder({ address: address.trim(), lat, lng, foodType, deadline, notes: notes.trim() || undefined });
     setAddress("");
     setSelectedCoords(null);
     setDeadline(45);
@@ -108,33 +91,37 @@ export default function OrderForm({ onSuccess }: OrderFormProps) {
     onSuccess?.();
   };
 
-  return (
-    <form onSubmit={handleSubmit} className="space-y-4 bg-white p-4 rounded-lg shadow">
-      <h2 className="text-lg font-bold text-gray-800">הזמנה חדשה</h2>
+  const foodOptions: { value: FoodType; label: string }[] = [
+    { value: "warm", label: "חם" },
+    { value: "sushi", label: "סושי" },
+    { value: "both", label: "משולב" },
+  ];
 
-      {/* Address with autocomplete */}
+  return (
+    <form onSubmit={handleSubmit} className="bg-white border border-[var(--border)] rounded-2xl p-5 space-y-4">
+      <h2 className="text-base font-semibold">הזמנה חדשה</h2>
+
       <div ref={wrapperRef} className="relative">
-        <label className="block text-sm font-medium text-gray-700 mb-1">כתובת</label>
         <input
           type="text"
           value={address}
           onChange={(e) => handleAddressChange(e.target.value)}
           onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
-          placeholder="התחל להקליד כתובת..."
-          className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          placeholder="כתובת למשלוח"
+          className="w-full bg-[var(--bg)] border-none rounded-xl px-4 py-3 text-base placeholder:text-[var(--text-secondary)] focus:ring-2 focus:ring-[var(--accent)] outline-none"
           required
           autoComplete="off"
         />
         {searchingAddress && (
-          <div className="absolute left-4 top-10 text-xs text-gray-400">מחפש...</div>
+          <div className="absolute left-4 top-3.5 text-xs text-[var(--text-secondary)]">...</div>
         )}
         {showSuggestions && (
-          <ul className="absolute z-50 w-full bg-white border border-gray-200 rounded-lg shadow-lg mt-1 max-h-48 overflow-y-auto">
+          <ul className="absolute z-50 w-full bg-white border border-[var(--border)] rounded-xl mt-1 max-h-48 overflow-y-auto shadow-lg">
             {suggestions.map((s, i) => (
               <li
                 key={i}
                 onClick={() => selectSuggestion(s)}
-                className="px-4 py-3 text-sm text-gray-700 hover:bg-blue-50 active:bg-blue-100 cursor-pointer border-b border-gray-100 last:border-0"
+                className="px-4 py-3 text-sm hover:bg-[var(--bg)] active:bg-gray-200 cursor-pointer border-b border-[var(--border)] last:border-0"
               >
                 {s.address}
               </li>
@@ -142,73 +129,73 @@ export default function OrderForm({ onSuccess }: OrderFormProps) {
           </ul>
         )}
         {selectedCoords && (
-          <div className="text-xs text-green-600 mt-1">✓ כתובת נבחרה</div>
+          <div className="text-xs text-[var(--green)] mt-1.5 font-medium">✓ כתובת אומתה</div>
         )}
       </div>
 
-      <div className="flex gap-3">
-        <div className="flex-1">
-          <label className="block text-sm font-medium text-gray-700 mb-1">סוג אוכל</label>
-          <select
-            value={foodType}
-            onChange={(e) => setFoodType(e.target.value as FoodType)}
-            className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:ring-2 focus:ring-blue-500"
+      {/* Food type - segmented control */}
+      <div className="flex bg-[var(--bg)] rounded-xl p-1 gap-1">
+        {foodOptions.map((opt) => (
+          <button
+            key={opt.value}
+            type="button"
+            onClick={() => setFoodType(opt.value)}
+            className={`flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all ${
+              foodType === opt.value
+                ? "bg-white text-[var(--text)] shadow-sm"
+                : "text-[var(--text-secondary)]"
+            }`}
           >
-            <option value="warm">חם</option>
-            <option value="sushi">סושי</option>
-            <option value="both">חם + סושי</option>
-          </select>
-        </div>
-
-        <div className="flex-1">
-          <label className="block text-sm font-medium text-gray-700 mb-1">זמן למשלוח (דקות)</label>
-          <div className="flex gap-1.5 mb-2">
-            {[20, 30, 45, 60].map((min) => (
-              <button
-                key={min}
-                type="button"
-                onClick={() => setDeadline(min)}
-                className={`flex-1 py-2 rounded-lg text-sm font-bold transition-colors ${
-                  deadline === min
-                    ? "bg-blue-600 text-white"
-                    : "bg-gray-100 text-gray-600 hover:bg-gray-200 active:bg-gray-300"
-                }`}
-              >
-                {min}
-              </button>
-            ))}
-          </div>
-          <input
-            type="number"
-            min={0}
-            max={75}
-            value={deadline}
-            onChange={(e) => setDeadline(Math.max(0, Math.min(75, Number(e.target.value))))}
-            className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:ring-2 focus:ring-blue-500"
-            required
-          />
-        </div>
+            {opt.label}
+          </button>
+        ))}
       </div>
 
+      {/* Deadline presets */}
       <div>
-        <label className="block text-sm font-medium text-gray-700 mb-1">הערות (אופציונלי)</label>
+        <div className="flex gap-2 mb-2">
+          {[20, 30, 45, 60].map((min) => (
+            <button
+              key={min}
+              type="button"
+              onClick={() => setDeadline(min)}
+              className={`flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all ${
+                deadline === min
+                  ? "bg-[var(--text)] text-white"
+                  : "bg-[var(--bg)] text-[var(--text-secondary)]"
+              }`}
+            >
+              {min} דק׳
+            </button>
+          ))}
+        </div>
         <input
-          type="text"
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-          placeholder="הערות מיוחדות..."
-          className="w-full border border-gray-300 rounded-lg px-4 py-3 text-base focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          type="number"
+          min={0}
+          max={75}
+          value={deadline}
+          onChange={(e) => setDeadline(Math.max(0, Math.min(75, Number(e.target.value))))}
+          className="w-full bg-[var(--bg)] border-none rounded-xl px-4 py-3 text-base placeholder:text-[var(--text-secondary)] focus:ring-2 focus:ring-[var(--accent)] outline-none"
+          required
         />
       </div>
 
-      {error && <p className="text-red-500 text-sm">{error}</p>}
+      <input
+        type="text"
+        value={notes}
+        onChange={(e) => setNotes(e.target.value)}
+        placeholder="הערות (אופציונלי)"
+        className="w-full bg-[var(--bg)] border-none rounded-xl px-4 py-3 text-base placeholder:text-[var(--text-secondary)] focus:ring-2 focus:ring-[var(--accent)] outline-none"
+      />
+
+      {error && <p className="text-[var(--red)] text-sm">{error}</p>}
 
       <button
         type="submit"
         disabled={loading}
-        className="w-full bg-blue-600 text-white py-3.5 rounded-lg font-bold text-base hover:bg-blue-700 active:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        className="w-full bg-[var(--accent)] text-white py-3.5 rounded-xl font-semibold text-base hover:bg-[var(--accent-hover)] active:opacity-80 disabled:opacity-40 transition-all"
       >
-        {loading ? "מוסיף הזמנה..." : "הוסף הזמנה"}
+        {loading ? "מחפש..." : "הוסף הזמנה"}
       </button>
     </form>
   );

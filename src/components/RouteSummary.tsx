@@ -43,33 +43,30 @@ function DebugPanel() {
   const handleCopy = async () => {
     try {
       await navigator.clipboard.writeText(text);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
     } catch {
-      // Fallback for older browsers
       const el = document.createElement("textarea");
       el.value = text;
       document.body.appendChild(el);
       el.select();
       document.execCommand("copy");
       document.body.removeChild(el);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
     }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   return (
-    <div className="bg-gray-900 text-gray-200 rounded-lg p-4 space-y-3">
+    <div className="bg-[var(--text)] text-gray-300 rounded-xl p-4 space-y-3">
       <div className="flex items-center justify-between">
-        <span className="text-sm font-bold">Debug Data</span>
+        <span className="text-xs font-semibold text-gray-400">DEBUG</span>
         <button
           onClick={handleCopy}
-          className="px-3 py-1.5 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 active:bg-blue-800 transition-colors"
+          className="px-3 py-1 bg-white/10 text-white text-xs font-medium rounded-lg hover:bg-white/20 transition-colors"
         >
-          {copied ? "✓ הועתק!" : "העתק"}
+          {copied ? "✓" : "העתק"}
         </button>
       </div>
-      <pre className="text-xs overflow-x-auto max-h-48 overflow-y-auto whitespace-pre-wrap break-all">
+      <pre className="text-[10px] overflow-x-auto max-h-40 overflow-y-auto whitespace-pre-wrap break-all font-mono opacity-80">
         {text}
       </pre>
     </div>
@@ -85,11 +82,10 @@ export default function RouteSummary() {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-bold text-gray-800">מסלולים מתוכננים</h2>
+        <span className="text-sm font-semibold">מסלולים</span>
         <button
           onClick={() => setShowDebug(!showDebug)}
-          className="w-8 h-8 rounded-full bg-gray-200 hover:bg-gray-300 active:bg-gray-400 flex items-center justify-center text-gray-600 text-sm font-bold transition-colors"
-          title="Debug info"
+          className="w-6 h-6 rounded-full bg-[var(--bg)] flex items-center justify-center text-[var(--text-secondary)] text-[10px] font-bold"
         >
           i
         </button>
@@ -104,51 +100,52 @@ export default function RouteSummary() {
         return (
           <div
             key={route.driver.id}
-            className="bg-white rounded-lg shadow overflow-hidden"
+            className="bg-white border border-[var(--border)] rounded-2xl overflow-hidden"
           >
-            <div
-              className="px-4 py-2 text-white font-bold flex items-center justify-between"
-              style={{ backgroundColor: route.driver.color }}
-            >
-              <span>{route.driver.name}</span>
-              <span className="text-sm font-normal">
+            <div className="px-4 py-2.5 flex items-center justify-between border-b border-[var(--border)]">
+              <div className="flex items-center gap-2">
+                <div
+                  className="w-3 h-3 rounded-full"
+                  style={{ backgroundColor: route.driver.color }}
+                />
+                <span className="text-sm font-semibold">{route.driver.name}</span>
+              </div>
+              <span className="text-xs text-[var(--text-secondary)]">
                 {distance} ק״מ · {duration} דק׳ · {route.stops.length} עצירות
               </span>
             </div>
-            {route.stops.length === 0 ? (
-              <p className="px-4 py-3 text-sm text-gray-400">אין הזמנות</p>
-            ) : (
-              <div className="divide-y divide-gray-100">
-                {route.stops.map((stop, i) => (
-                  <div key={stop.order.id} className="px-4 py-2 flex items-center gap-3">
-                    <span className="text-lg font-bold text-gray-300 w-6 text-center">
-                      {i + 1}
-                    </span>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-gray-800 truncate">
-                        {stop.order.address}
-                      </p>
-                      <div className="flex gap-2 text-xs text-gray-500 mt-0.5">
-                        <span>{FOOD_TYPE_LABELS[stop.order.foodType]}</span>
-                        <span>·</span>
-                        <span>הגעה: {stop.estimatedArrival}</span>
-                        <span>·</span>
-                        <span>{stop.distanceFromPrev} ק״מ</span>
-                        <span>·</span>
-                        <Countdown createdAt={stop.order.createdAt} deadlineMinutes={stop.order.deadline} />
-                      </div>
+            <div className="divide-y divide-[var(--border)]">
+              {route.stops.map((stop, i) => (
+                <div key={stop.order.id} className="px-4 py-2.5 flex items-center gap-3">
+                  <span className="text-sm font-bold text-[var(--text-secondary)] w-5 text-center">
+                    {i + 1}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{stop.order.address}</p>
+                    <div className="flex items-center gap-1.5 mt-1">
+                      <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded ${
+                        stop.order.foodType === "warm"
+                          ? "bg-red-50 text-red-600"
+                          : stop.order.foodType === "sushi"
+                          ? "bg-blue-50 text-blue-600"
+                          : "bg-purple-50 text-purple-600"
+                      }`}>
+                        {FOOD_TYPE_LABELS[stop.order.foodType]}
+                      </span>
+                      <span className="text-[10px] text-[var(--text-secondary)]">{stop.estimatedArrival}</span>
+                      <span className="text-[10px] text-[var(--text-secondary)]">{stop.distanceFromPrev}km</span>
+                      <Countdown createdAt={stop.order.createdAt} deadlineMinutes={stop.order.deadline} />
                     </div>
-                    <button
-                      onClick={() => markDelivered(stop.order.id)}
-                      className="w-10 h-10 rounded-full bg-green-100 hover:bg-green-200 active:bg-green-300 flex items-center justify-center text-green-600 flex-shrink-0 transition-colors"
-                      title="סמן כנמסר"
-                    >
-                      ✓
-                    </button>
                   </div>
-                ))}
-              </div>
-            )}
+                  <button
+                    onClick={() => markDelivered(stop.order.id)}
+                    className="w-9 h-9 rounded-xl bg-green-50 hover:bg-green-100 active:bg-green-200 flex items-center justify-center text-[var(--green)] font-bold text-sm flex-shrink-0 transition-colors"
+                  >
+                    ✓
+                  </button>
+                </div>
+              ))}
+            </div>
           </div>
         );
       })}

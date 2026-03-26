@@ -26,17 +26,17 @@ export default function Countdown({ createdAt, deadlineMinutes }: CountdownProps
 
   return (
     <span
-      className={`font-mono text-xs font-bold px-2 py-0.5 rounded-full ${
+      className={`font-mono text-[11px] font-bold px-1.5 py-0.5 rounded-md ${
         expired
-          ? "bg-gray-200 text-gray-500 line-through"
+          ? "bg-gray-100 text-gray-400 line-through"
           : urgent
-          ? "bg-red-100 text-red-700 animate-pulse"
+          ? "bg-red-50 text-[var(--red)] animate-pulse"
           : warning
-          ? "bg-orange-100 text-orange-700"
-          : "bg-green-100 text-green-700"
+          ? "bg-orange-50 text-[var(--orange)]"
+          : "bg-green-50 text-[var(--green)]"
       }`}
     >
-      {expired ? "עבר" : `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`}
+      {expired ? "00:00" : `${String(mins).padStart(2, "0")}:${String(secs).padStart(2, "0")}`}
     </span>
   );
 }
